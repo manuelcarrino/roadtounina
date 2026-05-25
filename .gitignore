@@ -1,0 +1,50 @@
+# Node
+node_modules/
+**/node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Vite / cache
+.vite/
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Misc
+*.log
+*.sqlite
+*.sqlite3
+
+# Playwright / test results
+test-results/
+playwright-report/
+
+# Frontend specific
+/dist/
+/.pnp
+.pnp.js
