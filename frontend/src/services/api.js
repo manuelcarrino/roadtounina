@@ -1,7 +1,8 @@
 import axios from "axios";
 
-const apiBaseUrl =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+const apiBaseUrl = window.location.hostname === 'localhost' 
+  ? "http://localhost:3001" 
+  : "";
 
 export const api = axios.create({
   baseURL: apiBaseUrl,
@@ -16,3 +17,4 @@ export const setAuthToken = (token) => {
 
   api.defaults.headers.common.Authorization = `Bearer ${token}`;
 };
+
