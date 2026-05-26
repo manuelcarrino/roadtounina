@@ -52,13 +52,12 @@ app.use(errorHandler);
 const fs = require('fs');
 const path = require('path');
 
-// Questo blocco si attiva SOLO se rileva la cartella dist (quindi solo su Render!)
-// Nel tuo PC non farà assolutamente nulla e tutto funzionerà come prima.
 const frontendPath = path.join(__dirname, '../../frontend/dist');
 
 if (fs.existsSync(frontendPath)) {
     app.use(express.static(frontendPath));
-    app.get('*', (req, res) => {
+    
+    app.get('(.*)', (req, res) => {
         res.sendFile(path.join(frontendPath, 'index.html'));
     });
 }
