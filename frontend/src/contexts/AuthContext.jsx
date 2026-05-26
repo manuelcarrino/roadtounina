@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 import { api, setAuthToken } from "../services/api";
 
@@ -60,6 +60,37 @@ export const AuthProvider = ({ children }) => {
     persistAuth(null);
   };
 
+  const updateAccount = async (payload) => {
+    const response = await api.post("/api/auth/update", payload);
+    if (response?.data?.user) {
+      persistAuth({
+        user: response.data.user,
+        accessToken: auth?.accessToken,
+        refreshToken: auth?.refreshToken,
+      });
+    }
+    return response.data;
+  };
+
+  useEffect(() => {
+    const interceptor = api.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        const status = error?.response?.status;
+        const url = error?.config?.url || "";
+        const isAuthEndpoint = url.startsWith("/api/auth/");
+        if (status === 401 && auth?.accessToken && !isAuthEndpoint) {
+          persistAuth(null);
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      api.interceptors.response.eject(interceptor);
+    };
+  }, [auth?.accessToken]);
+
   const value = useMemo(
     () => ({
       auth,
@@ -67,6 +98,7 @@ export const AuthProvider = ({ children }) => {
       register,
       login,
       logout,
+      updateAccount,
     }),
     [auth]
   );

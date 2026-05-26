@@ -3,6 +3,7 @@ const rateLimit = require("express-rate-limit");
 
 const authController = require("../controllers/authController");
 const { asyncHandler } = require("../utils/asyncHandler");
+const { requireAuth } = require("../middlewares/auth");
 
 const router = express.Router();
 
@@ -19,5 +20,7 @@ router.post("/register", asyncHandler(authController.register));
 router.post("/login", asyncHandler(authController.login));
 router.post("/refresh", asyncHandler(authController.refresh));
 router.post("/logout", asyncHandler(authController.logout));
+router.post("/delete", requireAuth, asyncHandler(authController.deleteAccount));
+router.post("/update", requireAuth, asyncHandler(authController.updateAccount));
 
 module.exports = router;

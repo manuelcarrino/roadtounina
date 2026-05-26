@@ -7,7 +7,7 @@ const requireAuth = (req, _res, next) => {
     : null;
 
   if (!token) {
-    const error = new Error("Access token missing");
+    const error = new Error("Sessione scaduta, effettua di nuovo l'accesso.");
     error.status = 401;
     return next(error);
   }
@@ -17,8 +17,9 @@ const requireAuth = (req, _res, next) => {
     req.user = { id: payload.userId };
     return next();
   } catch (error) {
-    error.status = 401;
-    return next(error);
+    const authError = new Error("Sessione scaduta, effettua di nuovo l'accesso.");
+    authError.status = 401;
+    return next(authError);
   }
 };
 

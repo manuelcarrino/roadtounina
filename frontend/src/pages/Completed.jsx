@@ -34,13 +34,16 @@ const Completed = () => {
         <h2>Partite concluse</h2>
         <p>Esplora i percorsi completati dalla community.</p>
       </div>
-      <div className="cards">
+      <div className="cards completed-grid">
         {status === "loading" && <p>Caricamento in corso...</p>}
         {status === "error" && <p>Impossibile caricare le partite.</p>}
         {status === "success" &&
           items.map((game) => (
-            <article key={`${game.startPage}-${game.endedAt}`}>
+            <article key={`${game.startPage}-${game.endedAt}`} className="completed-card">
               <h3>{game.startPage}</h3>
+              <div className="chips">
+                <span>{game.User?.username || "Utente anonimo"}</span>
+              </div>
               <p className="muted">
                 {game.clicks} click &middot; {game.durationSeconds}s
               </p>

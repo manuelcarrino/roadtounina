@@ -1,4 +1,5 @@
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const usernameRegex = /^[a-zA-Z0-9_]{3,24}$/;
 const maxTitleLength = Number.parseInt(
   process.env.PAGE_TITLE_MAX_LEN || "120",
   10
@@ -7,6 +8,9 @@ const maxTitleLength = Number.parseInt(
 const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
 
 const validateEmail = (email) => isNonEmptyString(email) && emailRegex.test(email.trim());
+
+const validateUsername = (username) =>
+  isNonEmptyString(username) && usernameRegex.test(username.trim());
 
 const validatePassword = (password) => {
   if (typeof password !== "string") {
@@ -65,6 +69,7 @@ const validateId = (value) => Number.isInteger(value) && value > 0;
 
 module.exports = {
   validateEmail,
+  validateUsername,
   validatePassword,
   normalizePageTitle,
   validateWikiTitle,

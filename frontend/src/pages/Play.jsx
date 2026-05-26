@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -14,6 +14,9 @@ const Play = () => {
   const [linksError, setLinksError] = useState("");
   const [filter, setFilter] = useState("");
   const [linksMeta, setLinksMeta] = useState({ total: 0, filteredTotal: 0 });
+  const [cooldown, setCooldown] = useState(false);
+  const leftRef = useRef(null);
+  const linkPanelRef = useRef(null);
 
   const canStart = isAuthed && status !== "loading";
 
@@ -37,10 +40,20 @@ const Play = () => {
   };
 
   useEffect(() => {
+    if (!isAuthed) {
+      setGame(null);
+      setLinks([]);
+      setLinksMeta({ total: 0, filteredTotal: 0 });
+      setLinksStatus("idle");
+      setLinksError("");
+      setError("");
+      setFilter("");
+      return;
+    }
     loadActive();
   }, [isAuthed]);
 
-  const loadLinks = async (gameId, q = "") => {
+  const loadLinks = async (gameId) => {
     if (!gameId) {
       return;
     }
@@ -48,12 +61,12 @@ const Play = () => {
     setLinksError("");
     try {
       const response = await api.get(`/api/games/${gameId}/links`, {
-        params: { q, limit: 300 },
+        params: { limit: 400 },
       });
       setLinks(response.data.links || []);
       setLinksMeta({
         total: response.data.total || 0,
-        filteredTotal: response.data.filteredTotal || 0,
+        filteredTotal: response.data.total || 0,
       });
       setLinksStatus("success");
     } catch (err) {
@@ -63,20 +76,26 @@ const Play = () => {
   };
 
   useEffect(() => {
-    if (game?.id) {
-      loadLinks(game.id, filter);
+    if (game?.id && game?.status !== "completed") {
+      loadLinks(game.id);
     }
   }, [game?.id]);
 
   useEffect(() => {
-    if (game?.id) {
-      const handler = setTimeout(() => {
-        loadLinks(game.id, filter);
-      }, 400);
-      return () => clearTimeout(handler);
-    }
-    return undefined;
-  }, [filter, game?.id]);
+    const updatePanelHeight = () => {
+      if (!leftRef.current || !linkPanelRef.current) {
+        return;
+      }
+      const leftHeight = leftRef.current.getBoundingClientRect().height;
+      linkPanelRef.current.style.maxHeight = `${leftHeight}px`;
+    };
+
+    updatePanelHeight();
+    window.addEventListener("resize", updatePanelHeight);
+    return () => {
+      window.removeEventListener("resize", updatePanelHeight);
+    };
+  }, [game?.status, links.length]);
 
   const handleStart = async () => {
     setStatus("loading");
@@ -87,7 +106,8 @@ const Play = () => {
       });
       setGame(response.data);
       setStartPage("");
-      await loadLinks(response.data.id, filter);
+      setFilter("");
+      await loadLinks(response.data.id);
     } catch (err) {
       setError(err?.response?.data?.message || "Impossibile avviare la partita");
     } finally {
@@ -99,10 +119,14 @@ const Play = () => {
     if (!game) {
       return;
     }
+    if (cooldown) {
+      return;
+    }
     const targetPage = pageOverride;
     if (!targetPage) {
       return;
     }
+    setCooldown(true);
     setStatus("loading");
     setError("");
     try {
@@ -110,11 +134,20 @@ const Play = () => {
         nextPage: targetPage,
       });
       setGame(response.data);
-      await loadLinks(response.data.id, filter);
+      setFilter("");
+      if (response.data.status === "completed") {
+        setLinks([]);
+        setLinksMeta({ total: 0, filteredTotal: 0 });
+        setLinksStatus("idle");
+        setLinksError("");
+        return;
+      }
+      await loadLinks(response.data.id);
     } catch (err) {
       setError(err?.response?.data?.message || "Mossa non valida");
     } finally {
       setStatus("idle");
+      setTimeout(() => setCooldown(false), 400);
     }
   };
 
@@ -141,7 +174,26 @@ const Play = () => {
     return game.path.join(" → ");
   }, [game]);
 
-  const filteredLinks = useMemo(() => links, [links]);
+  const filteredLinks = useMemo(() => {
+    if (!filter.trim()) {
+      return links;
+    }
+    const q = filter.trim().toLowerCase();
+    return links.filter((link) => link.toLowerCase().includes(q));
+  }, [filter, links]);
+
+  const statusLabel = (value) => {
+    switch (value) {
+      case "in_progress":
+        return "In corso";
+      case "completed":
+        return "Completata";
+      case "failed":
+        return "Abbandonata";
+      default:
+        return value || "-";
+    }
+  };
 
   return (
     <section className="page play">
@@ -161,7 +213,7 @@ const Play = () => {
       )}
 
       <div className="play-grid">
-        <div className="play-left">
+        <div className="play-left" ref={leftRef}>
           <article className="panel">
             <h3>Avvio partita</h3>
             <p className="muted">Lascia vuoto per partenza casuale.</p>
@@ -180,7 +232,9 @@ const Play = () => {
           </article>
           <article className="panel">
             <h3>Stato partita</h3>
-            <p className="muted">{game ? `Status: ${game.status}` : "Nessuna partita"}</p>
+            <p className="muted">
+              {game ? `Stato: ${statusLabel(game.status)}` : "Nessuna partita"}
+            </p>
             <div className="path-box">{pathPreview}</div>
             <button
               className="btn ghost"
@@ -193,7 +247,7 @@ const Play = () => {
           </article>
         </div>
 
-        <article className="panel link-panel">
+        <article className="panel link-panel" ref={linkPanelRef}>
           <div className="panel-head">
             <div>
               <h3>Link disponibili</h3>

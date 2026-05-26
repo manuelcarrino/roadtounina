@@ -116,7 +116,14 @@ const addMove = async (userId, gameId, nextPage) => {
     throw error;
   }
 
-  const linkedPages = await getPageLinks(game.currentPage);
+  let linkedPages;
+  try {
+    linkedPages = await getPageLinks(game.currentPage);
+  } catch (err) {
+    const error = new Error("Wikipedia links unavailable");
+    error.status = 502;
+    throw error;
+  }
   const normalizedLinkedPages = new Set(linkedPages.map(normalizeTitle));
   if (!normalizedLinkedPages.has(normalizedNextPage)) {
     const error = new Error("Next page is not linked from current page");
@@ -241,6 +248,7 @@ const listCompletedGames = async () => {
       "startedAt",
       "endedAt",
     ],
+    include: [{ model: User, attributes: ["username"] }],
     order: [["endedAt", "DESC"]],
   });
 };
@@ -252,7 +260,7 @@ const getLeaderboard = async () => {
         games.userId AS userId,
         MIN(games.clicks) AS bestClicks,
         COUNT(*) AS completedCount,
-        users.email AS email
+        users.username AS username
       FROM games
       LEFT JOIN users ON users.id = games.userId
       WHERE games.status = 'completed'

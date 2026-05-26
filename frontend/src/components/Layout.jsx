@@ -19,11 +19,11 @@ const Layout = () => {
           <NavLink to="/" end>
             Home
           </NavLink>
-          <NavLink to="/play">Play</NavLink>
-          <NavLink to="/completed">Completed</NavLink>
-          <NavLink to="/leaderboard">Leaderboard</NavLink>
-          <NavLink to="/rules">Rules</NavLink>
-          <NavLink to="/account">{isAuthed ? "Account" : "Login"}</NavLink>
+          <NavLink to="/play">Gioca</NavLink>
+          <NavLink to="/completed">Completati</NavLink>
+          <NavLink to="/leaderboard">Classifica</NavLink>
+          <NavLink to="/rules">Regole</NavLink>
+          <NavLink to="/account">{isAuthed ? "Account" : "Accedi"}</NavLink>
         </nav>
       </header>
 
@@ -33,9 +33,8 @@ const Layout = () => {
 
       <footer className="footer">
         <div>
-          <strong>ROADTOUNINA</strong> &middot; Wikipedia traversal challenge
+          <strong>ROADTOUNINA</strong> &middot; Sfida di navigazione Wikipedia
         </div>
-        <span>Backend on Express + SQLite</span>
       </footer>
     </div>
   );
