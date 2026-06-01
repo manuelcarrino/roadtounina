@@ -65,6 +65,21 @@
   padding: 6px 10px;
   border-radius: 999px;
   transition: all 0.25s ease;
+  position: relative;
+}
+
+.nav-shell a::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.25s ease;
 }
 
 .nav-shell a.active,
@@ -73,9 +88,64 @@
   color: var(--text-h);
 }
 
+.nav-shell a.active::after,
+.nav-shell a:hover::after {
+  transform: scaleX(1);
+}
+
 .content {
   flex: 1;
   padding: clamp(32px, 6vw, 72px) clamp(20px, 6vw, 80px);
+}
+
+.page-transition {
+  animation: pageEnter 0.5s ease both;
+}
+
+.page-transition .page-head,
+.page-transition .cards,
+.page-transition .panel,
+.page-transition .hero-grid,
+.page-transition .rules-hero,
+.page-transition .podium-stage {
+  animation: pageItem 0.6s ease both;
+}
+
+.page-transition .page-head {
+  animation-delay: 0.05s;
+}
+
+.page-transition .hero-grid,
+.page-transition .rules-hero {
+  animation-delay: 0.08s;
+}
+
+.page-transition .cards,
+.page-transition .panel,
+.page-transition .podium-stage {
+  animation-delay: 0.12s;
+}
+
+@keyframes pageEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pageItem {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .footer {
@@ -439,18 +509,23 @@
 }
 
 .leaderboard {
-  grid-template-columns: repeat(auto-fit, minmax(210px, 240px));
-  justify-content: start;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .leaderboard article {
   text-align: left;
   padding: 18px;
-  max-width: 240px;
+  max-width: none;
   background: linear-gradient(160deg, rgba(255, 250, 245, 0.9), rgba(255, 231, 210, 0.45));
   border: 1px solid rgba(226, 107, 42, 0.18);
   position: relative;
   overflow: hidden;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: 16px;
 }
 
 .leaderboard article::after {
@@ -463,7 +538,7 @@
 }
 
 .leaderboard-rank {
-  margin: 0 0 6px;
+  margin: 0;
   font-weight: 700;
   color: var(--text-h);
   letter-spacing: 0.08em;
@@ -510,6 +585,15 @@
   pointer-events: none;
 }
 
+.podium-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.6), transparent 45%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 .podium-rank-1::before {
   content: "";
   position: absolute;
@@ -550,6 +634,39 @@
   box-shadow: 0 8px 18px rgba(31, 24, 18, 0.12);
 }
 
+.podium-trophy {
+  width: 70px;
+  height: 70px;
+  margin: 0 auto 8px;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(31, 24, 18, 0.12);
+  box-shadow: 0 10px 24px rgba(31, 24, 18, 0.12);
+  animation: trophyFloat 2.8s ease-in-out infinite;
+}
+
+.podium-trophy.gold {
+  color: #b46a18;
+  background: linear-gradient(160deg, rgba(255, 235, 192, 0.95), rgba(255, 255, 255, 0.9));
+}
+
+.podium-trophy.silver {
+  color: #6b778f;
+  background: linear-gradient(160deg, rgba(230, 236, 248, 0.95), rgba(255, 255, 255, 0.95));
+}
+
+.podium-trophy.bronze {
+  color: #9c5b3c;
+  background: linear-gradient(160deg, rgba(240, 214, 198, 0.95), rgba(255, 255, 255, 0.9));
+}
+
+.trophy-icon {
+  width: 42px;
+  height: 42px;
+}
+
 .podium-name {
   margin: 0 0 6px;
   color: var(--text-h);
@@ -559,30 +676,6 @@
   display: block;
   color: var(--muted);
   font-size: 13px;
-}
-
-.podium-stand {
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: 16px;
-  height: 38px;
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(31, 24, 18, 0.12), rgba(31, 24, 18, 0.02));
-  border: 1px solid rgba(31, 24, 18, 0.1);
-  animation: podiumGlow 3s ease-in-out infinite;
-}
-
-.podium-rank-1 .podium-stand {
-  height: 62px;
-}
-
-.podium-rank-2 .podium-stand {
-  height: 48px;
-}
-
-.podium-rank-3 .podium-stand {
-  height: 40px;
 }
 
 @keyframes podiumRise {
@@ -596,19 +689,29 @@
   }
 }
 
-@keyframes podiumGlow {
+@keyframes trophyFloat {
   0%,
   100% {
-    box-shadow: 0 12px 30px rgba(31, 24, 18, 0.12);
+    transform: translateY(0);
   }
   50% {
-    box-shadow: 0 16px 40px rgba(31, 24, 18, 0.2);
+    transform: translateY(-4px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .podium-card,
-  .podium-stand {
+  .podium-trophy {
+    animation: none;
+  }
+
+  .page-transition,
+  .page-transition .page-head,
+  .page-transition .cards,
+  .page-transition .panel,
+  .page-transition .hero-grid,
+  .page-transition .rules-hero,
+  .page-transition .podium-stage {
     animation: none;
   }
 }

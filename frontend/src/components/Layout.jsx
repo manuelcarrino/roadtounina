@@ -28,7 +28,9 @@ const Layout = () => {
       </header>
 
       <main className="content">
-        <Outlet />
+        <div className="page-transition">
+          <Outlet />
+        </div>
       </main>
 
       <footer className="footer">
