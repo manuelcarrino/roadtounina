@@ -16,7 +16,7 @@ const Completed = () => {
           setItems(response.data);
           setStatus("success");
         }
-      } catch (error) {
+      } catch {
         if (isMounted) {
           setStatus("error");
         }

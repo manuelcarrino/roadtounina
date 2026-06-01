@@ -7,6 +7,11 @@ const Leaderboard = () => {
   const { isAuthed } = useAuth();
   const [items, setItems] = useState([]);
   const [status, setStatus] = useState("idle");
+  const podium = [
+    { entry: items[1], rank: 2, tone: "silver" },
+    { entry: items[0], rank: 1, tone: "gold" },
+    { entry: items[2], rank: 3, tone: "bronze" },
+  ].filter((slot) => slot.entry);
 
   useEffect(() => {
     let isMounted = true;
@@ -23,7 +28,7 @@ const Leaderboard = () => {
           setItems(response.data);
           setStatus("success");
         }
-      } catch (error) {
+      } catch {
         if (isMounted) {
           setStatus("error");
         }
@@ -47,13 +52,17 @@ const Leaderboard = () => {
         </div>
       )}
       {status === "success" && items.length > 0 && (
-        <section className="podium">
-          {items.slice(0, 3).map((entry, index) => (
-            <article key={`${entry.userId}-podium-${index}`} className={`podium-card rank-${index + 1}`}>
-              <p className="podium-rank">#{index + 1}</p>
-              <h3>{entry.username || "Utente anonimo"}</h3>
-              <p className="muted">Best: {entry.bestClicks} click</p>
-              <span className="muted">{entry.completedCount} completate</span>
+        <section className="podium-stage">
+          {podium.map(({ entry, rank, tone }) => (
+            <article
+              key={`${entry.userId}-podium-${rank}`}
+              className={`podium-card podium-rank-${rank} podium-${tone}`}
+            >
+              <div className="podium-medal">#{rank}</div>
+              <h3 className="podium-name">{entry.username || "Utente anonimo"}</h3>
+              <p className="podium-meta">Best: {entry.bestClicks} click</p>
+              <span className="podium-meta">{entry.completedCount} completate</span>
+              <div className="podium-stand" aria-hidden="true"></div>
             </article>
           ))}
         </section>
@@ -64,8 +73,8 @@ const Leaderboard = () => {
         {status === "success" &&
           items.slice(3, 23).map((entry, index) => (
             <article key={`${entry.userId}-${index}`}>
-              <h3>#{index + 4}</h3>
-              <p className="muted">{entry.username || "Utente anonimo"}</p>
+              <p className="leaderboard-rank">#{index + 4}</p>
+              <h3>{entry.username || "Utente anonimo"}</h3>
               <p className="stat">Best: {entry.bestClicks} click</p>
               <span className="muted">
                 {entry.completedCount} completate

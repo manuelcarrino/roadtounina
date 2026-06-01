@@ -20,15 +20,16 @@ const errorHandler = (err, _req, res, _next) => {
     "Internal server error": fallbackMessages[500],
     "Route not found": fallbackMessages[404],
     "Not allowed by CORS": fallbackMessages[403],
-    "Page title is not valid": "Pagina non valida",
-    "Page does not exist": "Pagina non disponibile",
+    "Page title is not valid": fallbackMessages[400],
+    "Page does not exist": fallbackMessages[400],
     "Failed to fetch random page": fallbackMessages[502],
     "Failed to resolve page title": fallbackMessages[502],
     "Failed to fetch page links": fallbackMessages[502],
+    "Wikipedia links unavailable": fallbackMessages[502],
   };
   const rawMessage = err.message || "";
   const message = messageMap[rawMessage] ||
-    (rawMessage.startsWith("Upstream status") ? fallbackMessages[502] : rawMessage) ||
+    (rawMessage.startsWith("Upstream status") ? fallbackMessages[502] : "") ||
     fallbackMessages[status] ||
     "Errore imprevisto";
   const payload = { message, status };

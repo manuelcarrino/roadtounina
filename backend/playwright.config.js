@@ -13,7 +13,7 @@ module.exports = {
     baseURL: process.env.E2E_BASE_URL || "http://localhost:3002",
   },
   webServer: {
-    command: "node index.js",
+    command: "node src/server.js",
     port: 3002,
     reuseExistingServer: false,
     env: {

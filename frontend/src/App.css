@@ -438,39 +438,179 @@
   color: var(--text-h);
 }
 
-.leaderboard article {
-  text-align: center;
-  padding: 16px;
-  max-width: 220px;
-  background: linear-gradient(160deg, rgba(226, 107, 42, 0.14), rgba(255, 209, 179, 0.22));
-  border: 1px solid rgba(226, 107, 42, 0.2);
-}
-
 .leaderboard {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 220px));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 240px));
   justify-content: start;
 }
 
-.podium {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.podium-card {
-  background: linear-gradient(160deg, rgba(226, 107, 42, 0.14), rgba(255, 209, 179, 0.22));
-  border: 1px solid rgba(226, 107, 42, 0.25);
-  border-radius: 24px;
+.leaderboard article {
+  text-align: left;
   padding: 18px;
-  box-shadow: var(--shadow-soft);
-  text-align: center;
+  max-width: 240px;
+  background: linear-gradient(160deg, rgba(255, 250, 245, 0.9), rgba(255, 231, 210, 0.45));
+  border: 1px solid rgba(226, 107, 42, 0.18);
+  position: relative;
+  overflow: hidden;
 }
 
-.podium-rank {
+.leaderboard article::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.65), transparent 60%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.leaderboard-rank {
   margin: 0 0 6px;
   font-weight: 700;
   color: var(--text-h);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.podium-stage {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 32px;
+  align-items: end;
+}
+
+.podium-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 26px;
+  padding: 22px 18px 84px;
+  border: 1px solid rgba(226, 107, 42, 0.25);
+  box-shadow: var(--shadow-soft);
+  text-align: center;
+  animation: podiumRise 0.7s ease forwards;
+}
+
+.podium-card:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.podium-card:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.podium-card:nth-child(3) {
+  animation-delay: 0.18s;
+}
+
+.podium-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.6), transparent 55%);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.podium-rank-1::before {
+  content: "";
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 18px solid transparent;
+  border-right: 18px solid transparent;
+  border-bottom: 18px solid #f1c27d;
+  filter: drop-shadow(0 6px 10px rgba(31, 24, 18, 0.2));
+}
+
+.podium-gold {
+  background: linear-gradient(160deg, rgba(255, 230, 170, 0.5), rgba(255, 246, 226, 0.9));
+}
+
+.podium-silver {
+  background: linear-gradient(160deg, rgba(210, 220, 235, 0.5), rgba(248, 250, 255, 0.95));
+}
+
+.podium-bronze {
+  background: linear-gradient(160deg, rgba(225, 180, 150, 0.45), rgba(255, 244, 235, 0.9));
+}
+
+.podium-medal {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  margin: 0 auto 10px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: var(--text-h);
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(31, 24, 18, 0.15);
+  box-shadow: 0 8px 18px rgba(31, 24, 18, 0.12);
+}
+
+.podium-name {
+  margin: 0 0 6px;
+  color: var(--text-h);
+}
+
+.podium-meta {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.podium-stand {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 16px;
+  height: 38px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(31, 24, 18, 0.12), rgba(31, 24, 18, 0.02));
+  border: 1px solid rgba(31, 24, 18, 0.1);
+  animation: podiumGlow 3s ease-in-out infinite;
+}
+
+.podium-rank-1 .podium-stand {
+  height: 62px;
+}
+
+.podium-rank-2 .podium-stand {
+  height: 48px;
+}
+
+.podium-rank-3 .podium-stand {
+  height: 40px;
+}
+
+@keyframes podiumRise {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes podiumGlow {
+  0%,
+  100% {
+    box-shadow: 0 12px 30px rgba(31, 24, 18, 0.12);
+  }
+  50% {
+    box-shadow: 0 16px 40px rgba(31, 24, 18, 0.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .podium-card,
+  .podium-stand {
+    animation: none;
+  }
 }
 
 .completed-grid {
@@ -804,6 +944,18 @@
 
   .link-list {
     max-height: 380px;
+  }
+
+  .podium-stage {
+    grid-template-columns: 1fr;
+  }
+
+  .leaderboard {
+    justify-content: stretch;
+  }
+
+  .leaderboard article {
+    max-width: none;
   }
 }
 

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { api, setAuthToken } from "../services/api";
 
@@ -20,7 +20,7 @@ const getStoredAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [auth, setAuth] = useState(() => getStoredAuth());
 
-  const persistAuth = (nextAuth) => {
+  const persistAuth = useCallback((nextAuth) => {
     setAuth(nextAuth);
     if (!nextAuth) {
       localStorage.removeItem("rtu_auth");
@@ -30,9 +30,9 @@ export const AuthProvider = ({ children }) => {
 
     localStorage.setItem("rtu_auth", JSON.stringify(nextAuth));
     setAuthToken(nextAuth.accessToken);
-  };
+  }, []);
 
-  const register = async (payload) => {
+  const register = useCallback(async (payload) => {
     const response = await api.post("/api/auth/register", payload);
     persistAuth({
       user: response.data.user,
@@ -40,9 +40,9 @@ export const AuthProvider = ({ children }) => {
       refreshToken: response.data.tokens.refreshToken,
     });
     return response.data;
-  };
+  }, [persistAuth]);
 
-  const login = async (payload) => {
+  const login = useCallback(async (payload) => {
     const response = await api.post("/api/auth/login", payload);
     persistAuth({
       user: response.data.user,
@@ -50,17 +50,17 @@ export const AuthProvider = ({ children }) => {
       refreshToken: response.data.tokens.refreshToken,
     });
     return response.data;
-  };
+  }, [persistAuth]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     const refreshToken = auth?.refreshToken;
     if (refreshToken) {
       await api.post("/api/auth/logout", { refreshToken });
     }
     persistAuth(null);
-  };
+  }, [auth?.refreshToken, persistAuth]);
 
-  const updateAccount = async (payload) => {
+  const updateAccount = useCallback(async (payload) => {
     const response = await api.post("/api/auth/update", payload);
     if (response?.data?.user) {
       persistAuth({
@@ -70,7 +70,7 @@ export const AuthProvider = ({ children }) => {
       });
     }
     return response.data;
-  };
+  }, [auth?.accessToken, auth?.refreshToken, persistAuth]);
 
   useEffect(() => {
     const interceptor = api.interceptors.response.use(
@@ -89,7 +89,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       api.interceptors.response.eject(interceptor);
     };
-  }, [auth?.accessToken]);
+  }, [auth?.accessToken, persistAuth]);
 
   const value = useMemo(
     () => ({
@@ -100,7 +100,7 @@ export const AuthProvider = ({ children }) => {
       logout,
       updateAccount,
     }),
-    [auth]
+    [auth, register, login, logout, updateAccount]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

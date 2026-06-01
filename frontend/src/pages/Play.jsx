@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -20,7 +20,7 @@ const Play = () => {
 
   const canStart = isAuthed && status !== "loading";
 
-  const loadActive = async () => {
+  const loadActive = useCallback(async () => {
     if (!isAuthed) {
       return;
     }
@@ -37,7 +37,7 @@ const Play = () => {
       setGame(null);
       setLinks([]);
     }
-  };
+  }, [isAuthed]);
 
   useEffect(() => {
     if (!isAuthed) {
@@ -51,9 +51,9 @@ const Play = () => {
       return;
     }
     loadActive();
-  }, [isAuthed]);
+  }, [isAuthed, loadActive]);
 
-  const loadLinks = async (gameId) => {
+  const loadLinks = useCallback(async (gameId) => {
     if (!gameId) {
       return;
     }
@@ -73,13 +73,13 @@ const Play = () => {
       setLinksStatus("error");
       setLinksError(err?.response?.data?.message || "Impossibile caricare i link");
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (game?.id && game?.status !== "completed") {
       loadLinks(game.id);
     }
-  }, [game?.id]);
+  }, [game?.id, game?.status, loadLinks]);
 
   useEffect(() => {
     const updatePanelHeight = () => {
@@ -158,8 +158,14 @@ const Play = () => {
     setStatus("loading");
     setError("");
     try {
-      const response = await api.post(`/api/games/${game.id}/abandon`);
-      setGame(response.data);
+      await api.post(`/api/games/${game.id}/abandon`);
+      setGame(null);
+      setLinks([]);
+      setLinksMeta({ total: 0, filteredTotal: 0 });
+      setLinksStatus("idle");
+      setLinksError("");
+      setFilter("");
+      setStartPage("");
     } catch (err) {
       setError(err?.response?.data?.message || "Impossibile abbandonare");
     } finally {
