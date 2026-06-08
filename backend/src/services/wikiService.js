@@ -5,14 +5,20 @@ const cacheTtlMs = 10 * 60 * 1000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const fetchJsonWithRetry = async (url, { retries = 4, backoffMs = 350 } = {}) => {
+const fetchJsonWithRetry = async (url, { retries = 7, backoffMs = 400 } = {}) => {
   let lastError;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
       const response = await fetch(url);
-      if (!response.ok && (response.status >= 500 || response.status === 429)) {
-        throw new Error(`Upstream status ${response.status}`);
+      if (!response.ok) {
+        // 429 = rate limit. Anche 4xx/5xx qui vengono gestiti tramite retry se previsto.
+        if (response.status >= 500 || response.status === 429) {
+          throw new Error(`Upstream status ${response.status}`);
+        }
+        // errori 4xx non gestiti esplicitamente: falliamo subito
+        return { response, payload: null };
       }
+
       const payload = await response.json().catch(() => null);
       return { response, payload };
     } catch (err) {
@@ -54,6 +60,7 @@ const getRandomPage = async () => {
     format: "json",
     origin: "*",
   });
+
 
   const { response, payload } = await fetchJsonWithRetry(
     `${WIKI_ENDPOINT}?${params.toString()}`
@@ -98,65 +105,57 @@ const resolvePageTitle = async (pageTitle) => {
   return normalizeTitle(page.title);
 };
 
-const getPageLinks = async (pageTitle, maxLinks = 2000) => {
+// NUOVA FUNZIONE: Estrae sia l'HTML che la struttura dei link validi
+const getPageData = async (pageTitle) => {
   const normalizedTitle = normalizeTitle(pageTitle);
   if (!normalizedTitle) {
     throw new Error("Page title is not valid");
   }
-  const cacheKey = `${normalizedTitle}::${maxLinks}`;
+  const cacheKey = `data::${normalizedTitle}`;
   const cached = linksCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < cacheTtlMs) {
-    return cached.links;
+    return cached.data;
   }
-  let links = [];
-  let plContinue = null;
-  try {
-    do {
-      const params = new URLSearchParams({
-        action: "query",
-        prop: "links",
-        titles: normalizedTitle,
-        plnamespace: "0",
-        pllimit: "max",
-        format: "json",
-        origin: "*",
-      });
 
-      if (plContinue) {
-        params.set("plcontinue", plContinue);
-      }
+  const params = new URLSearchParams({
+    action: "parse",
+    page: normalizedTitle,
+    prop: "text|links", // Chiede sia l'HTML che l'elenco dei link associati
+    format: "json",
+    origin: "*",
+    disableeditsection: "true", // Rimuove i fastidiosi bottoni "[modifica]" dall'HTML
+  });
 
-      const { response, payload } = await fetchJsonWithRetry(
-        `${WIKI_ENDPOINT}?${params.toString()}`
-      );
-      if (!response.ok) {
-        throw new Error("Failed to fetch page links");
-      }
-      const pages = payload?.query?.pages || {};
-      const page = Object.values(pages)[0];
-      if (!page || page.missing) {
-        throw new Error("Page does not exist");
-      }
-
-      const pageLinks = Array.isArray(page?.links) ? page.links : [];
-
-      links = links.concat(pageLinks.map((entry) => normalizeTitle(entry.title)));
-      plContinue = payload?.continue?.plcontinue || null;
-    } while (plContinue && links.length < maxLinks);
-  } catch (error) {
-    if (cached?.links?.length) {
-      return cached.links;
-    }
-    throw error;
+  const { response, payload } = await fetchJsonWithRetry(
+    `${WIKI_ENDPOINT}?${params.toString()}`
+  );
+  if (!response.ok) {
+    throw new Error("Failed to fetch page data");
   }
-  const result = links.slice(0, maxLinks);
-  linksCache.set(cacheKey, { timestamp: Date.now(), links: result });
-  return result;
+
+  const html = payload?.parse?.text?.["*"] || "";
+  const parseLinks = payload?.parse?.links || [];
+  
+  const links = parseLinks
+    .filter((entry) => entry.ns === 0 && entry["*"])
+    .map((entry) => normalizeTitle(entry["*"]))
+    .filter(Boolean);
+
+  const data = { html, links };
+  linksCache.set(cacheKey, { timestamp: Date.now(), data });
+  return data;
+};
+
+// Mantiene la compatibilità con addMove senza rompere nulla
+const getPageLinks = async (pageTitle) => {
+  const data = await getPageData(pageTitle);
+  return data.links;
 };
 
 module.exports = {
   getRandomPage,
   getPageLinks,
+  getPageData,
   normalizeTitle,
   resolvePageTitle,
 };

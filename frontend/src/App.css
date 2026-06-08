@@ -435,7 +435,6 @@
   background: linear-gradient(160deg, rgba(226, 107, 42, 0.14), rgba(255, 209, 179, 0.22));
 }
 
-
 .rule-card::after {
   content: "";
   position: absolute;
@@ -444,7 +443,6 @@
   opacity: 0.8;
   pointer-events: none;
 }
-
 
 .rule-head {
   display: flex;
@@ -476,8 +474,6 @@
   position: relative;
   z-index: 1;
 }
-
-
 
 .panel {
   background: var(--surface);
@@ -564,18 +560,6 @@
   animation: podiumRise 0.7s ease forwards;
 }
 
-.podium-card:nth-child(1) {
-  animation-delay: 0.05s;
-}
-
-.podium-card:nth-child(2) {
-  animation-delay: 0.12s;
-}
-
-.podium-card:nth-child(3) {
-  animation-delay: 0.18s;
-}
-
 .podium-card::after {
   content: "";
   position: absolute;
@@ -592,6 +576,18 @@
   background: radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.6), transparent 45%);
   opacity: 0.6;
   pointer-events: none;
+}
+
+.podium-card:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.podium-card:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.podium-card:nth-child(3) {
+  animation-delay: 0.18s;
 }
 
 .podium-rank-1::before {
@@ -742,6 +738,14 @@
   font-size: 11px;
   color: #b54f23;
   background: rgba(255, 244, 234, 0.8);
+}
+
+.chips .timer {
+  font-size: 18px;
+  padding: 8px 12px;
+  color: var(--text-h);
+  border-color: rgba(226, 107, 42, 0.55);
+  background: rgba(255, 255, 255, 0.65);
 }
 
 .muted {
@@ -996,11 +1000,117 @@
   margin-bottom: 24px;
 }
 
+.wiki-container {
+  font-family: sans-serif;
+  line-height: 1.6;
+  color: #202122;
+}
 
+.wiki-container a {
+  color: #3167eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.onwiki-container a:hover {
+  text-decoration: underline;
+}
+
+/* Nasconde elementi di disturbo nativi di wikipedia se presenti */
+.wiki-container .mw-editsection,
+.wiki-container .navbox,
+.wiki-container .magnifying-glass {
+  display: none !important;
+}
+
+/* =====================
+   Spinner + Wikipedia stage
+   ===================== */
+
+.spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-h);
+  font-weight: 700;
+}
+
+.spinner-ring {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid rgba(226, 107, 42, 0.25);
+  border-top-color: var(--accent);
+  animation: spinner-rotate 2.2s linear infinite; /* più lenta => aiuta a percepire il caricamento */
+}
+
+.spinner-label {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+@keyframes spinner-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner-ring {
+    animation: none;
+  }
+}
+
+.wiki-stage {
+  position: relative;
+  flex: 1;
+  min-height: 360px; /* container fisso */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.wiki-spinner-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center; /* centrato */
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.02); /* meno grigio rispetto al container */
+  z-index: 2;
+}
+
+
+/* Responsive */
 @media (max-width: 900px) {
   .hero-grid {
     grid-template-columns: 1fr;
   }
+
+  .play-left {
+    gap: 18px;
+  }
+
+  .play-left .panel {
+    padding: 18px;
+  }
+
+  .link-panel {
+    padding: 18px;
+  }
+
+  .wiki-stage {
+    min-height: 420px;
+  }
+
+  .wiki-container {
+    font-size: 14px;
+  }
+
 
   .hero-copy h1 {
     line-height: 1.12;
@@ -1088,4 +1198,63 @@
   .cards {
     grid-template-columns: 1fr;
   }
+
+  /* =====================
+     Phone UX: Play page
+     ===================== */
+  .play-grid {
+    gap: 16px;
+  }
+
+  .play-left {
+    gap: 16px;
+  }
+
+  .play-left .panel,
+  .link-panel {
+    padding: 16px;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  /* Wikipedia stage should scroll reliably on flex layouts */
+  .wiki-stage {
+    min-height: 0;
+  }
+
+  .wiki-container {
+    overflow-x: hidden;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .wiki-container p,
+  .wiki-container li {
+    font-size: 14.5px;
+    line-height: 1.55;
+  }
+
+  .wiki-container h1,
+  .wiki-container h2,
+  .wiki-container h3,
+  .wiki-container h4,
+  .wiki-container h5,
+  .wiki-container h6 {
+    overflow-wrap: anywhere;
+  }
+
+  .wiki-container table {
+    max-width: 100%;
+    display: block;
+    overflow-x: auto;
+  }
+
+  /* Tap targets */
+  .play .btn {
+    width: 100%;
+  }
 }
+
+

@@ -17,6 +17,7 @@ const requireAuth = (req, _res, next) => {
     req.user = { id: payload.userId };
     return next();
   } catch (error) {
+    // non cambiamo messaggi auth qui: la modifica richiesta è lato login/utente non esiste
     const authError = new Error("Sessione scaduta, effettua di nuovo l'accesso.");
     authError.status = 401;
     return next(authError);
@@ -24,3 +25,4 @@ const requireAuth = (req, _res, next) => {
 };
 
 module.exports = { requireAuth };
+

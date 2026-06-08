@@ -5,10 +5,12 @@ const User = require("../models/User");
 const { sequelize } = require("../db");
 const {
   getRandomPage,
-  getPageLinks,
   normalizeTitle,
   resolvePageTitle,
+  getPageData,
 } = require("./wikiService");
+
+
 const {
   normalizePageTitle,
   validateWikiTitle,
@@ -103,6 +105,8 @@ const addMove = async (userId, gameId, nextPage) => {
     throw error;
   }
 
+
+
   const game = await Game.findOne({ where: { id: parsedGameId, userId } });
   if (!game) {
     const error = new Error("Game not found");
@@ -116,24 +120,33 @@ const addMove = async (userId, gameId, nextPage) => {
     throw error;
   }
 
-  let linkedPages;
+  // Recuperiamo links + html tramite getPageData (stessa fonte usata da /links)
+  let pageData;
   try {
-    linkedPages = await getPageLinks(game.currentPage);
+    pageData = await getPageData(game.currentPage);
   } catch (err) {
-    const error = new Error("Wikipedia links unavailable");
+    const error = new Error("Wikipedia content unavailable");
     error.status = 502;
     throw error;
   }
-  const normalizedLinkedPages = new Set(linkedPages.map(normalizeTitle));
+
+  const normalizedLinkedPages = new Set(
+    (pageData.links || []).map(normalizeTitle)
+  );
+
   if (!normalizedLinkedPages.has(normalizedNextPage)) {
     const error = new Error("Next page is not linked from current page");
     error.status = 400;
     throw error;
   }
 
+
+  // Indietro: non consideriamo la pagina precedente come una nuova “mossa” valida se non è linkata.
+  // Però manteniamo coerente path/currentPage/clicks già gestiti dal client.
   game.path = [...game.path, normalizedNextPage];
   game.currentPage = normalizedNextPage;
   game.clicks += 1;
+
 
   if (normalizeForCompare(normalizedNextPage) === normalizeForCompare(game.targetPage)) {
     game.status = "completed";
@@ -148,14 +161,7 @@ const addMove = async (userId, gameId, nextPage) => {
   return game;
 };
 
-const getActiveGame = async (userId) => {
-  return Game.findOne({
-    where: { userId, status: "in_progress" },
-    order: [["startedAt", "DESC"]],
-  });
-};
-
-const getGameLinks = async (userId, gameId, query = {}) => {
+const undoMove = async (userId, gameId) => {
   const parsedGameId = parseId(gameId);
   if (!validateId(parsedGameId)) {
     const error = new Error("Game id is not valid");
@@ -170,33 +176,72 @@ const getGameLinks = async (userId, gameId, query = {}) => {
     throw error;
   }
 
-  const rawQuery = typeof query.q === "string" ? query.q.trim() : "";
-  const q = rawQuery.toLowerCase();
-  const limit = Number.parseInt(query.limit || "200", 10);
-  const safeLimit = Number.isNaN(limit) ? 200 : Math.min(Math.max(limit, 50), 400);
-  const maxLinks = Number.parseInt(query.maxLinks || "1200", 10);
-  const safeMaxLinks = Number.isNaN(maxLinks)
-    ? 1200
-    : Math.min(Math.max(maxLinks, 200), 2000);
+  if (game.status !== "in_progress") {
+    const error = new Error("Game is not active");
+    error.status = 409;
+    throw error;
+  }
 
-  let links;
+  // path: [startPage, ...]; quindi l'ultimo elemento è la corrente
+  if (!Array.isArray(game.path) || game.path.length <= 1) {
+    return game;
+  }
+
+  // rimuove la pagina corrente, lascia la precedente
+  game.path = game.path.slice(0, game.path.length - 1);
+  game.currentPage = game.path[game.path.length - 1];
+
+
+  // Indietro deve contare comunque come click
+  game.clicks = (game.clicks || 0) + 1;
+
+  game.status = "in_progress";
+  game.endedAt = null;
+  game.durationSeconds = null;
+
+  await game.save();
+  return game;
+};
+
+const getActiveGame = async (userId) => {
+  return Game.findOne({
+    where: { userId, status: "in_progress" },
+    order: [["startedAt", "DESC"]],
+  });
+};
+
+
+const getGameLinks = async (userId, gameId) => {
+  const parsedGameId = parseId(gameId);
+  if (!validateId(parsedGameId)) {
+    const error = new Error("Game id is not valid");
+    error.status = 400;
+    throw error;
+  }
+
+  const game = await Game.findOne({ where: { id: parsedGameId, userId } });
+  if (!game) {
+    const error = new Error("Game not found");
+    error.status = 404;
+    throw error;
+  }
+
+  let pageData;
   try {
-    links = await getPageLinks(game.currentPage, safeMaxLinks);
+    // Recupera l'HTML (e i link) della pagina corrente
+    pageData = await getPageData(game.currentPage);
   } catch (err) {
-    const error = new Error("Wikipedia links unavailable");
+    const error = new Error("Wikipedia content unavailable");
     error.status = 502;
     throw error;
   }
-  const filtered = q
-    ? links.filter((link) => link && link.toLowerCase().includes(q))
-    : links;
 
+
+  // Rispondiamo inviando l'HTML direttamente al frontend
   return {
     gameId: game.id,
     currentPage: game.currentPage,
-    total: links.length,
-    filteredTotal: filtered.length,
-    links: filtered.filter(Boolean).slice(0, safeLimit),
+    html: pageData.html,
   };
 };
 
@@ -221,16 +266,13 @@ const abandonGame = async (userId, gameId) => {
     throw error;
   }
 
-  game.status = "failed";
-  game.endedAt = new Date();
-  game.durationSeconds = Math.max(
-    0,
-    Math.floor((game.endedAt - game.startedAt) / 1000)
-  );
+  // Per evitare giochi “orfani”/in corso, eliminiamo direttamente il record
+  // invece di marcarlo come failed.
+  await Game.destroy({ where: { id: parsedGameId, userId } });
 
-  await game.save();
-  return game;
+  return { id: parsedGameId, deleted: true };
 };
+
 
 const listUserGames = async (userId) => {
   return Game.findAll({ where: { userId }, order: [["startedAt", "DESC"]] });
@@ -283,4 +325,5 @@ module.exports = {
   listUserGames,
   listCompletedGames,
   getLeaderboard,
+  undoMove,
 };

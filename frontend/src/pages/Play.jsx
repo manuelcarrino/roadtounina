@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
+import "../App.css";
 import { api } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import Spinner from "../components/Spinner";
+
 
 const Play = () => {
   const { isAuthed } = useAuth();
@@ -9,16 +11,27 @@ const Play = () => {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [startPage, setStartPage] = useState("");
-  const [links, setLinks] = useState([]);
+  const [html, setHtml] = useState(""); // Cambiato da links a html
   const [linksStatus, setLinksStatus] = useState("idle");
   const [linksError, setLinksError] = useState("");
-  const [filter, setFilter] = useState("");
-  const [linksMeta, setLinksMeta] = useState({ total: 0, filteredTotal: 0 });
   const [cooldown, setCooldown] = useState(false);
   const leftRef = useRef(null);
   const linkPanelRef = useRef(null);
 
+  // Stack per tasto “Indietro” (conta come click sulla pagina precedente)
+  const historyRef = useRef([]);
+
+
   const canStart = isAuthed && status !== "loading";
+
+  // re-render timer while partita è in corso
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!game || game.status !== "in_progress") return;
+    const id = setInterval(() => setNowMs(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [game?.id, game?.status]);
+
 
   const loadActive = useCallback(async () => {
     if (!isAuthed) {
@@ -29,57 +42,67 @@ const Play = () => {
       const response = await api.get("/api/games/me/active");
       if (response.status === 204) {
         setGame(null);
-        setLinks([]);
+        setHtml("");
       } else {
         setGame(response.data);
       }
     } catch {
       setGame(null);
-      setLinks([]);
+      setHtml("");
     }
   }, [isAuthed]);
 
   useEffect(() => {
     if (!isAuthed) {
       setGame(null);
-      setLinks([]);
-      setLinksMeta({ total: 0, filteredTotal: 0 });
+      setHtml("");
       setLinksStatus("idle");
       setLinksError("");
       setError("");
-      setFilter("");
       return;
     }
     loadActive();
   }, [isAuthed, loadActive]);
 
-  const loadLinks = useCallback(async (gameId) => {
+  const loadPageContent = useCallback(async (gameId) => {
     if (!gameId) {
       return;
     }
     setLinksStatus("loading");
     setLinksError("");
     try {
-      const response = await api.get(`/api/games/${gameId}/links`, {
-        params: { limit: 400 },
-      });
-      setLinks(response.data.links || []);
-      setLinksMeta({
-        total: response.data.total || 0,
-        filteredTotal: response.data.total || 0,
-      });
+      const response = await api.get(`/api/games/${gameId}/links`);
+      setHtml(response.data.html || "");
       setLinksStatus("success");
     } catch (err) {
       setLinksStatus("error");
-      setLinksError(err?.response?.data?.message || "Impossibile caricare i link");
+      setLinksError(err?.response?.data?.message || "Impossibile caricare la pagina");
     }
   }, []);
 
+  // mantiene lo storico locale per il tasto “Indietro”
+  useEffect(() => {
+    if (!game?.id) {
+      historyRef.current = [];
+      return;
+    }
+
+    if (game?.currentPage) {
+      const current = game.currentPage;
+      const stack = historyRef.current;
+      if (stack.length === 0 || stack[stack.length - 1] !== current) {
+        // quando cambia pagina, pushiamo la pagina corrente come “precedente”
+        stack.push(current);
+      }
+    }
+  }, [game?.id, game?.currentPage]);
+
   useEffect(() => {
     if (game?.id && game?.status !== "completed") {
-      loadLinks(game.id);
+      loadPageContent(game.id);
     }
-  }, [game?.id, game?.status, loadLinks]);
+  }, [game?.id, game?.status, loadPageContent]);
+
 
   useEffect(() => {
     const updatePanelHeight = () => {
@@ -95,7 +118,7 @@ const Play = () => {
     return () => {
       window.removeEventListener("resize", updatePanelHeight);
     };
-  }, [game?.status, links.length]);
+  }, [game?.status, html]);
 
   const handleStart = async () => {
     setStatus("loading");
@@ -106,8 +129,7 @@ const Play = () => {
       });
       setGame(response.data);
       setStartPage("");
-      setFilter("");
-      await loadLinks(response.data.id);
+      await loadPageContent(response.data.id);
     } catch (err) {
       setError(err?.response?.data?.message || "Impossibile avviare la partita");
     } finally {
@@ -115,17 +137,15 @@ const Play = () => {
     }
   };
 
-  const handleMove = async (pageOverride) => {
-    if (!game) {
+  const handleMove = async (targetPage, { skipHistoryPush = false } = {}) => {
+    // blocco extra durante caricamento pagine per evitare click multipli
+    if (!game || cooldown || status === "loading" || linksStatus === "loading") {
       return;
     }
-    if (cooldown) {
-      return;
-    }
-    const targetPage = pageOverride;
     if (!targetPage) {
       return;
     }
+
     setCooldown(true);
     setStatus("loading");
     setError("");
@@ -134,22 +154,79 @@ const Play = () => {
         nextPage: targetPage,
       });
       setGame(response.data);
-      setFilter("");
       if (response.data.status === "completed") {
-        setLinks([]);
-        setLinksMeta({ total: 0, filteredTotal: 0 });
+        setHtml("");
         setLinksStatus("idle");
         setLinksError("");
         return;
       }
-      await loadLinks(response.data.id);
+      await loadPageContent(response.data.id);
     } catch (err) {
       setError(err?.response?.data?.message || "Mossa non valida");
     } finally {
       setStatus("idle");
-      setTimeout(() => setCooldown(false), 400);
+      setTimeout(() => setCooldown(false), skipHistoryPush ? 600 : 400);
     }
   };
+
+
+  const handleBack = async () => {
+    if (!game || cooldown) {
+      return;
+    }
+
+    const stack = historyRef.current;
+    if (!stack.length) {
+      return;
+    }
+
+    // pop della pagina precedente
+    const previousPage = stack.pop();
+    if (!previousPage) {
+      return;
+    }
+
+    setCooldown(true);
+    setStatus("loading");
+    setError("");
+    // Mostra la rotella subito, prima di qualsiasi await, così l'utente la vede anche se le API rispondono velocemente.
+    setLinksStatus("loading");
+    setLinksError("");
+
+    try {
+      await api.post(`/api/games/${game.id}/undo`);
+      const updated = await api.get(`/api/games/me/active`);
+      setGame(updated.data || null);
+      if (updated.data?.status !== "completed") {
+        setError("");
+        await loadPageContent(updated.data.id);
+      }
+
+
+      // ricomponi la stack in modo che l'utente possa continuare a fare indietro
+      // se la stack aveva [A(prev), B(current)], dopo undo deve diventare [A]
+      // quindi rimuoviamo l'elemento tornato indietro (previousPage) in modo posizionale
+      // e ricostruiamo aggiungendo eventuale currentPage come ultimo.
+      // ricostruzione stack basata sulla struttura path sul server
+      // se path sul server è [start, ..., prev, current] allora la stack locale deve essere [..., prev]
+      // quindi dopo undo dobbiamo semplicemente rimuovere l'elemento appena tornato indietro (previousPage)
+      // e far coincidere l'ultimo elemento della stack con la pagina corrente aggiornata.
+      const updatedPath = updated.data?.path;
+      if (Array.isArray(updatedPath) && updatedPath.length >= 2) {
+        historyRef.current = updatedPath.slice(0, updatedPath.length - 1);
+      } else {
+        historyRef.current = historyRef.current.filter((p) => p !== previousPage);
+      }
+
+
+    } catch (err) {
+      setError(err?.response?.data?.message || "Impossibile tornare indietro");
+    } finally {
+      setStatus("idle");
+    setTimeout(() => setCooldown(false), 400);
+    }
+  };
+
 
   const handleAbandon = async () => {
     if (!game) {
@@ -160,16 +237,48 @@ const Play = () => {
     try {
       await api.post(`/api/games/${game.id}/abandon`);
       setGame(null);
-      setLinks([]);
-      setLinksMeta({ total: 0, filteredTotal: 0 });
+      setHtml("");
       setLinksStatus("idle");
       setLinksError("");
-      setFilter("");
       setStartPage("");
     } catch (err) {
       setError(err?.response?.data?.message || "Impossibile abbandonare");
     } finally {
       setStatus("idle");
+    }
+  };
+
+  // Intercettatore globale dei click sui link di Wikipedia
+  const handleWikiClick = (event) => {
+    // Trova l'elemento anchor <a> più vicino rispetto a dove si è cliccato
+    const anchor = event.target.closest("a");
+    if (!anchor) {
+      return;
+    }
+
+    const href = anchor.getAttribute("href");
+
+    // Intercettiamo SOLO i link interni di Wikipedia (es: /wiki/Napoli)
+    if (href && href.startsWith("/wiki/")) {
+      event.preventDefault(); // Blocca il cambio pagina del browser!
+
+      // Estrae il titolo puro eliminando il prefisso ed eventuali ancore interne (#sezione)
+      const cleanHref = href.replace("/wiki/", "").split("#")[0];
+
+      // Ignora i link di servizio/speciali (es: File:, Aiuto:, Categoria:) che contengono i due punti
+      if (cleanHref.includes(":")) {
+        return;
+      }
+
+      // Decodifica i caratteri URL (es: %27 in ') e sostituisce i trattini bassi con spazi
+      const pageTitle = decodeURIComponent(cleanHref).replace(/_/g, " ");
+      
+      if (pageTitle) {
+        handleMove(pageTitle);
+      }
+    } else {
+      // Blocca anche gli altri link (esterni) per evitare che l'utente esca dal gioco per errore
+      event.preventDefault();
     }
   };
 
@@ -179,14 +288,6 @@ const Play = () => {
     }
     return game.path.join(" → ");
   }, [game]);
-
-  const filteredLinks = useMemo(() => {
-    if (!filter.trim()) {
-      return links;
-    }
-    const q = filter.trim().toLowerCase();
-    return links.filter((link) => link.toLowerCase().includes(q));
-  }, [filter, links]);
 
   const statusLabel = (value) => {
     switch (value) {
@@ -222,15 +323,8 @@ const Play = () => {
         <div className="play-left" ref={leftRef}>
           <article className="panel">
             <h3>Avvio partita</h3>
-            <p className="muted">Lascia vuoto per partenza casuale.</p>
+            <p className="muted">Genera una sfida casuale.</p>
             <div className="stack">
-              <input
-                type="text"
-                placeholder="Pagina di partenza"
-                value={startPage}
-                onChange={(event) => setStartPage(event.target.value)}
-                disabled={!canStart}
-              />
               <button className="btn primary" onClick={handleStart} disabled={!canStart}>
                 {game?.status === "completed" ? "Avvia una nuova partita" : "Avvia"}
               </button>
@@ -241,60 +335,88 @@ const Play = () => {
             <p className="muted">
               {game ? `Stato: ${statusLabel(game.status)}` : "Nessuna partita"}
             </p>
-            <div className="path-box">{pathPreview}</div>
-            <button
-              className="btn ghost"
-              onClick={handleAbandon}
-              disabled={!game || status === "loading"}
-            >
-              Abbandona
-            </button>
+
+            {game && (
+              <div style={{ display: "grid", gap: 8 }}>
+                <div className="chips">
+                  <span>{game.clicks} click</span>
+                  <span className="timer">{Math.max(0, Math.floor(((nowMs - new Date(game.startedAt).getTime()) / 1000)))}s</span>
+
+                </div>
+
+                <div className="path-box">{pathPreview}</div>
+              </div>
+            )}
+
+            {game?.status === "in_progress" && (
+              <>
+                {game?.path?.length > 1 && (
+                  <button
+                    className="btn ghost"
+                    onClick={handleBack}
+                    disabled={cooldown}
+                    style={{ marginTop: 12 }}
+                  >
+                    Indietro
+                  </button>
+                )}
+
+
+                <button
+                  className="btn ghost"
+                  onClick={handleAbandon}
+                  disabled={status === "loading"}
+                >
+                  Abbandona
+                </button>
+              </>
+            )}
+
             {error && <p className="notice error">{error}</p>}
           </article>
         </div>
 
-        <article className="panel link-panel" ref={linkPanelRef}>
+        <article className="panel link-panel" ref={linkPanelRef} style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="panel-head">
             <div>
-              <h3>Link disponibili</h3>
-              <p className="muted">Clicca un link per avanzare.</p>
+              <h3>Visualizzazione Wikipedia</h3>
+              <p className="muted">Clicca direttamente sulle parole blu nel testo per navigare.</p>
             </div>
-            <input
-              className="filter"
-              type="text"
-              placeholder="Filtra link..."
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-              disabled={!game}
-            />
           </div>
-          {linksStatus === "success" && (
-            <p className="muted">
-              Mostrati {filteredLinks.length} su {linksMeta.filteredTotal} (totale
-              pagina {linksMeta.total}).
-            </p>
-          )}
-          {linksStatus === "loading" && <p>Caricamento link...</p>}
-          {linksStatus === "error" && <p className="notice error">{linksError}</p>}
-          {linksStatus === "success" && (
-            <div className="link-list">
-              {filteredLinks.slice(0, 200).map((link) => (
-                <button
-                  key={link}
-                  className="link-item"
-                  type="button"
-                  onClick={() => handleMove(link)}
-                  disabled={status === "loading"}
-                >
-                  {link}
-                </button>
-              ))}
-            </div>
-          )}
+
+          <div className="wiki-stage">
+            {linksStatus === "loading" && (
+              <div className="wiki-spinner-overlay" aria-busy="true" aria-live="polite">
+                <Spinner label="Caricamento pagina di Wikipedia..." />
+              </div>
+            )}
+
+            {linksStatus === "error" && (
+              <p className="notice error" style={{ margin: 0, alignSelf: 'flex-start' }}>
+                {linksError}
+              </p>
+            )}
+
+            {linksStatus === "success" && (
+              <div
+                className="wiki-container"
+                onClick={handleWikiClick}
+                dangerouslySetInnerHTML={{ __html: html }}
+                style={{
+                  overflowY: "auto",
+                  flex: 1,
+                  paddingRight: "10px",
+                  textAlign: "left",
+                }}
+              />
+            )}
+          </div>
         </article>
+
       </div>
     </section>
   );
 };
 
 export default Play;
+

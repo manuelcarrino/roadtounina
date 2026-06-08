@@ -46,6 +46,7 @@ router.post(
 	asyncHandler(gameController.addMove)
 );
 router.post("/:gameId/abandon", requireAuth, asyncHandler(gameController.abandonGame));
+router.post("/:gameId/undo", requireAuth, enforceMoveCooldown, asyncHandler(gameController.undoMove));
 router.get("/:gameId/links", requireAuth, asyncHandler(gameController.getGameLinks));
 router.get("/me", requireAuth, asyncHandler(gameController.listMyGames));
 router.get("/me/active", requireAuth, asyncHandler(gameController.getActiveGame));
