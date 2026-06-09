@@ -54,15 +54,21 @@ const Play = () => {
 
   useEffect(() => {
     if (!isAuthed) {
-      setGame(null);
-      setHtml("");
+      // Non puliamo game/html: durante logout/cambio route vogliamo poter rientrare e vedere “Riprendi partita”.
+      // Nota: le azioni di gioco (move) vengono bloccate da handleWikiClick + controlli UI.
       setLinksStatus("idle");
       setLinksError("");
       setError("");
       return;
     }
-    loadActive();
+
+    // Ricostruiamo sempre dallo stato server così anche dopo una pausa su cambio pagina
+    // vediamo correttamente “Riprendi partita”.
+    void loadActive();
   }, [isAuthed, loadActive]);
+
+
+
 
   const loadPageContent = useCallback(async (gameId) => {
     if (!gameId) {
@@ -99,9 +105,62 @@ const Play = () => {
 
   useEffect(() => {
     if (game?.id && game?.status !== "completed") {
+      // Importante: anche se lo stato diventa “paused”, la pagina HTML deve essere disponibile.
+      // Altrimenti rientrando, l'UI può rimanere in una configurazione incoerente.
       loadPageContent(game.id);
     }
   }, [game?.id, game?.status, loadPageContent]);
+
+
+  useEffect(() => {
+    const maybePauseOnLeave = async () => {
+      try {
+        if (game?.id && game.status === "in_progress") {
+          try {
+            await api.post(`/api/games/${game.id}/pause`);
+          } catch (err) {
+            // Race-condition possibile tra browser nav/visibilità e richieste concorrenti.
+            // Se il server risponde 409, non bloccare: sincronizziamo subito con lo stato reale.
+            if (err?.response?.status !== 409) {
+              throw err;
+            }
+          }
+
+          // Sincronizza sempre lo stato server (così al ritorno compare “Riprendi partita”).
+          // Utile anche se la pausa fallisce per 409.
+          await loadActive();
+        }
+      } catch {
+        // noop
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        void maybePauseOnLeave();
+      }
+    };
+
+    const onPageHide = () => {
+      void maybePauseOnLeave();
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onPageHide);
+
+    const requestId = window.requestAnimationFrame(() => {});
+
+    return () => {
+      // cleanup eseguito quando lasci la route
+      window.cancelAnimationFrame(requestId);
+      void maybePauseOnLeave();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", onPageHide);
+    };
+  }, [game?.id, game?.status]);
+
 
 
   useEffect(() => {
@@ -124,6 +183,14 @@ const Play = () => {
     setStatus("loading");
     setError("");
     try {
+      // Se avevamo una partita in pausa, la ricreiamo eliminando quella “paused” sul server.
+      // (evita due partite concorrenti per lo stesso utente)
+      if (game?.status === "paused") {
+        // se stiamo riprendendo una pausa tramite “Avvia”, eliminiamo la partita precedente
+        // per evitare un doppio gioco in concorrenza
+        await api.post(`/api/games/${game.id}/abandon`);
+      }
+
       const response = await api.post("/api/games/start", {
         startPage: startPage || undefined,
       });
@@ -132,6 +199,21 @@ const Play = () => {
       await loadPageContent(response.data.id);
     } catch (err) {
       setError(err?.response?.data?.message || "Impossibile avviare la partita");
+    } finally {
+      setStatus("idle");
+    }
+  };
+
+
+  const resumePausedGame = async () => {
+    if (!game || !game.id) return;
+    setStatus("loading");
+    setError("");
+    try {
+      await api.post(`/api/games/${game.id}/resume`);
+      await loadActive();
+    } catch (err) {
+      setError(err?.response?.data?.message || "Impossibile riprendere la partita");
     } finally {
       setStatus("idle");
     }
@@ -250,6 +332,14 @@ const Play = () => {
 
   // Intercettatore globale dei click sui link di Wikipedia
   const handleWikiClick = (event) => {
+    // Se non autenticato o partita non attiva, non permettere click/move.
+    // Manteniamo la UI renderizzata, ma la rendiamo “read-only”.
+    if (!isAuthed || !game || game.status !== "in_progress") {
+      // Evita navigazioni esterne o cambi pagina del browser
+      event.preventDefault();
+      return;
+    }
+
     // Trova l'elemento anchor <a> più vicino rispetto a dove si è cliccato
     const anchor = event.target.closest("a");
     if (!anchor) {
@@ -293,6 +383,8 @@ const Play = () => {
     switch (value) {
       case "in_progress":
         return "In corso";
+      case "paused":
+        return "In pausa";
       case "completed":
         return "Completata";
       case "failed":
@@ -325,10 +417,18 @@ const Play = () => {
             <h3>Avvio partita</h3>
             <p className="muted">Genera una sfida casuale.</p>
             <div className="stack">
-              <button className="btn primary" onClick={handleStart} disabled={!canStart}>
-                {game?.status === "completed" ? "Avvia una nuova partita" : "Avvia"}
-              </button>
+              {game?.status === "paused" ? (
+                <button className="btn primary" onClick={resumePausedGame} disabled={status === "loading"}>
+                  Riprendi partita
+                </button>
+              ) : (
+
+                <button className="btn primary" onClick={handleStart} disabled={!canStart}>
+                  {game?.status === "completed" ? "Avvia una nuova partita" : "Avvia"}
+                </button>
+              )}
             </div>
+
           </article>
           <article className="panel">
             <h3>Stato partita</h3>
@@ -348,9 +448,9 @@ const Play = () => {
               </div>
             )}
 
-            {game?.status === "in_progress" && (
+            {(game?.status === "in_progress" || game?.status === "paused") && (
               <>
-                {game?.path?.length > 1 && (
+                {game?.status === "in_progress" && game?.path?.length > 1 && (
                   <button
                     className="btn ghost"
                     onClick={handleBack}
@@ -366,6 +466,7 @@ const Play = () => {
                   className="btn ghost"
                   onClick={handleAbandon}
                   disabled={status === "loading"}
+                  style={{ marginTop: game?.status === "paused" ? 12 : 0 }}
                 >
                   Abbandona
                 </button>
@@ -384,7 +485,7 @@ const Play = () => {
             </div>
           </div>
 
-          <div className="wiki-stage">
+          <div className="wiki-stage" style={{ position: "relative", flex: 1, display: "flex", flexDirection: "column" }}>
             {linksStatus === "loading" && (
               <div className="wiki-spinner-overlay" aria-busy="true" aria-live="polite">
                 <Spinner label="Caricamento pagina di Wikipedia..." />
@@ -398,17 +499,46 @@ const Play = () => {
             )}
 
             {linksStatus === "success" && (
-              <div
-                className="wiki-container"
-                onClick={handleWikiClick}
-                dangerouslySetInnerHTML={{ __html: html }}
-                style={{
-                  overflowY: "auto",
-                  flex: 1,
-                  paddingRight: "10px",
-                  textAlign: "left",
-                }}
-              />
+              <>
+                {game?.status === "paused" && (
+                  <div 
+                    className="paused-overlay" 
+                    style={{
+                      position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                      backgroundColor: "rgba(255, 255, 255, 0.4)", zIndex: 5,
+                      display: "flex", justifyContent: "center", alignItems: "center",
+                      backdropFilter: "blur(1px)", pointerEvents: "none"
+                    }}
+                  >
+                    <span style={{ 
+                      padding: "8px 16px", 
+                      background: "rgba(0,0,0,0.7)", 
+                      color: "#fff", 
+                      borderRadius: "4px",
+                      fontWeight: "bold",
+                      fontSize: "14px"
+                    }}>
+                      Visualizzazione in pausa - Clicca su "Riprendi partita" per giocare
+                    </span>
+                  </div>
+                )}
+                <div
+                  className="wiki-container"
+                  onClick={handleWikiClick}
+                  dangerouslySetInnerHTML={{ __html: html }}
+                  style={{
+                    overflowY: "auto",
+                    flex: 1,
+                    paddingRight: "10px",
+                    textAlign: "left",
+                    pointerEvents: game?.status === "paused" ? "none" : "auto",
+                    opacity: game?.status === "paused" ? 0.6 : 1,
+                    userSelect: "none",      
+                    WebkitUserSelect: "none", 
+                    msUserSelect: "none"      
+                  }}
+                />
+              </>
             )}
           </div>
         </article>
@@ -419,4 +549,3 @@ const Play = () => {
 };
 
 export default Play;
-

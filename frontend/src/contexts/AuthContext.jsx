@@ -53,12 +53,24 @@ export const AuthProvider = ({ children }) => {
   }, [persistAuth]);
 
   const logout = useCallback(async () => {
+    // Notifichiamo il server: quando l’utente fa logout, la partita corrente va in paused.
+    try {
+      const me = await api.get("/api/games/me/active");
+      if (me?.data?.id) {
+        // Mettiamo in pausa (non abbandoniamo)
+        await api.post(`/api/games/${me.data.id}/pause`);
+      }
+    } catch {
+      // noop (nessuna partita o errore di rete): procediamo comunque con il logout
+    }
+
     const refreshToken = auth?.refreshToken;
     if (refreshToken) {
       await api.post("/api/auth/logout", { refreshToken });
     }
     persistAuth(null);
   }, [auth?.refreshToken, persistAuth]);
+
 
   const updateAccount = useCallback(async (payload) => {
     const response = await api.post("/api/auth/update", payload);

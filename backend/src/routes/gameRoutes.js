@@ -39,17 +39,23 @@ router.get("/completed", asyncHandler(gameController.listCompletedGames));
 router.use(gameLimiter);
 
 router.post("/start", requireAuth, asyncHandler(gameController.startGame));
-router.post(
-	"/:gameId/move",
-	requireAuth,
-	enforceMoveCooldown,
-	asyncHandler(gameController.addMove)
-);
+
+router.post("/:gameId/resume", requireAuth, asyncHandler(gameController.resumeGame));
+
+router.post("/:gameId/pause",requireAuth,asyncHandler(gameController.pauseGame));
+
+router.post("/:gameId/move",requireAuth,enforceMoveCooldown,asyncHandler(gameController.addMove));
+
 router.post("/:gameId/abandon", requireAuth, asyncHandler(gameController.abandonGame));
+
 router.post("/:gameId/undo", requireAuth, enforceMoveCooldown, asyncHandler(gameController.undoMove));
+
 router.get("/:gameId/links", requireAuth, asyncHandler(gameController.getGameLinks));
+
 router.get("/me", requireAuth, asyncHandler(gameController.listMyGames));
+
 router.get("/me/active", requireAuth, asyncHandler(gameController.getActiveGame));
+
 router.get("/leaderboard", requireAuth, asyncHandler(gameController.getLeaderboard));
 
 module.exports = router;

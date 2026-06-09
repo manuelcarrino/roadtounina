@@ -8,10 +8,7 @@ const errorHandler = (err, _req, res, _next) => {
   const status = err.status || (err.message === "Not allowed by CORS" ? 403 : 500);
   const fallbackMessages = {
     400: "Richiesta non valida",
-    401: "Credenziali non valide. Effettua di nuovo l'accesso.",
-
-
-
+    401: "Credenziali non valide o password errata",
     403: "Operazione non consentita",
     404: "Risorsa non trovata",
     409: "Operazione non valida",
@@ -30,7 +27,7 @@ const errorHandler = (err, _req, res, _next) => {
     "Failed to fetch page links": fallbackMessages[502],
     "Wikipedia links unavailable": fallbackMessages[502],
     "Sessione scaduta, effettua di nuovo l'accesso.": "Sessione scaduta, effettua di nuovo l'accesso.",
-    "Credenziali non valide o password errata": "Credenziali non valide o password errata",
+    "Invalid credentials or wrong password": fallbackMessages[401],
   };
 
 

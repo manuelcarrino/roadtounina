@@ -27,12 +27,17 @@ const getActiveGame = async (req, res) => {
   return res.status(200).json(result);
 };
 
+const resumeGame = async (req, res) => {
+  const { gameId } = req.params;
+  const result = await gameService.resumePausedGame(req.user.id, gameId);
+  res.status(200).json(result);
+};
+
 const getGameLinks = async (req, res) => {
   const { gameId } = req.params;
   const result = await gameService.getGameLinks(req.user.id, gameId);
   res.status(200).json(result);
 };
-
 
 const listCompletedGames = async (_req, res) => {
   const result = await gameService.listCompletedGames();
@@ -50,6 +55,12 @@ const abandonGame = async (req, res) => {
   res.status(200).json(result);
 };
 
+const pauseGame = async (req, res) => {
+  const { gameId } = req.params;
+  const result = await gameService.pauseGame(req.user.id, gameId);
+  res.status(200).json(result);
+};
+
 const undoMove = async (req, res) => {
   const { gameId } = req.params;
   const result = await gameService.undoMove(req.user.id, gameId);
@@ -61,9 +72,12 @@ module.exports = {
   addMove,
   undoMove,
   getActiveGame,
+  resumeGame,
+  pauseGame,
   getGameLinks,
   listMyGames,
   listCompletedGames,
   getLeaderboard,
   abandonGame,
 };
+

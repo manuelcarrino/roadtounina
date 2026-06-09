@@ -1,4 +1,5 @@
 const { QueryTypes } = require("sequelize");
+const { Op } = require("sequelize");
 
 const Game = require("../models/Game");
 const User = require("../models/User");
@@ -9,7 +10,6 @@ const {
   resolvePageTitle,
   getPageData,
 } = require("./wikiService");
-
 
 const {
   normalizePageTitle,
@@ -33,7 +33,7 @@ const normalizeForCompare = (value) =>
 const startNewGame = async (userId, startPage) => {
   const user = await User.findByPk(userId);
   if (!user) {
-    const error = new Error("User not found");
+    const error = new Error("Utente non trovato");
     error.status = 404;
     throw error;
   }
@@ -43,7 +43,7 @@ const startNewGame = async (userId, startPage) => {
     initialPage = validateWikiTitle(startPage);
     if (!initialPage) {
       const error = new Error(
-        `Start page is not valid (max ${maxTitleLength} chars, no namespace)`
+        `La pagina di partenza non è valida (max ${maxTitleLength} caratteri, senza namespace)`
       );
       error.status = 400;
       throw error;
@@ -51,7 +51,7 @@ const startNewGame = async (userId, startPage) => {
 
     const resolvedTitle = await resolvePageTitle(initialPage);
     if (!resolvedTitle) {
-      const error = new Error("Start page does not exist on Wikipedia");
+      const error = new Error("La pagina di partenza non esiste su Wikipedia");
       error.status = 400;
       throw error;
     }
@@ -68,6 +68,7 @@ const startNewGame = async (userId, startPage) => {
   if (resolvedTarget) {
     normalizedTargetPage = resolvedTarget;
   }
+  
   const game = await Game.create({
     userId: user.id,
     startPage: initialPage,
@@ -77,6 +78,8 @@ const startNewGame = async (userId, startPage) => {
     clicks: 0,
     status: "in_progress",
     startedAt: new Date(),
+    lastActivityAt: new Date(),
+    pausedAt: null,
   });
 
   return game;
@@ -84,14 +87,14 @@ const startNewGame = async (userId, startPage) => {
 
 const addMove = async (userId, gameId, nextPage) => {
   if (!nextPage) {
-    const error = new Error("Next page is required");
+    const error = new Error("La pagina successiva è richiesta");
     error.status = 400;
     throw error;
   }
 
   const parsedGameId = parseId(gameId);
   if (!validateId(parsedGameId)) {
-    const error = new Error("Game id is not valid");
+    const error = new Error("L'ID della partita non è valido");
     error.status = 400;
     throw error;
   }
@@ -99,33 +102,31 @@ const addMove = async (userId, gameId, nextPage) => {
   const normalizedNextPage = validateWikiTitle(nextPage);
   if (!normalizedNextPage) {
     const error = new Error(
-      `Next page is not valid (max ${maxTitleLength} chars, no namespace)`
+      `La pagina successiva non è valida (max ${maxTitleLength} caratteri, senza namespace)`
     );
     error.status = 400;
     throw error;
   }
 
-
-
   const game = await Game.findOne({ where: { id: parsedGameId, userId } });
   if (!game) {
-    const error = new Error("Game not found");
+    const error = new Error("Partita non trovata");
     error.status = 404;
     throw error;
   }
 
+  // CONTROLLO DI SICUREZZA: Impedisce cheat se il gioco è in pausa o terminato
   if (game.status !== "in_progress") {
-    const error = new Error("Game is not active");
-    error.status = 409;
+    const error = new Error("Azione non permessa: la partita è in pausa o terminata.");
+    error.status = 403;
     throw error;
   }
 
-  // Recuperiamo links + html tramite getPageData (stessa fonte usata da /links)
   let pageData;
   try {
     pageData = await getPageData(game.currentPage);
   } catch (err) {
-    const error = new Error("Wikipedia content unavailable");
+    const error = new Error("Contenuto di Wikipedia non disponibile");
     error.status = 502;
     throw error;
   }
@@ -135,18 +136,15 @@ const addMove = async (userId, gameId, nextPage) => {
   );
 
   if (!normalizedLinkedPages.has(normalizedNextPage)) {
-    const error = new Error("Next page is not linked from current page");
+    const error = new Error("La pagina successiva non è collegata dalla pagina corrente");
     error.status = 400;
     throw error;
   }
 
-
-  // Indietro: non consideriamo la pagina precedente come una nuova “mossa” valida se non è linkata.
-  // Però manteniamo coerente path/currentPage/clicks già gestiti dal client.
   game.path = [...game.path, normalizedNextPage];
   game.currentPage = normalizedNextPage;
   game.clicks += 1;
-
+  game.lastActivityAt = new Date();
 
   if (normalizeForCompare(normalizedNextPage) === normalizeForCompare(game.targetPage)) {
     game.status = "completed";
@@ -164,80 +162,94 @@ const addMove = async (userId, gameId, nextPage) => {
 const undoMove = async (userId, gameId) => {
   const parsedGameId = parseId(gameId);
   if (!validateId(parsedGameId)) {
-    const error = new Error("Game id is not valid");
+    const error = new Error("L'ID della partita non è valido");
     error.status = 400;
     throw error;
   }
 
   const game = await Game.findOne({ where: { id: parsedGameId, userId } });
   if (!game) {
-    const error = new Error("Game not found");
+    const error = new Error("Partita non trovata");
     error.status = 404;
     throw error;
   }
 
   if (game.status !== "in_progress") {
-    const error = new Error("Game is not active");
-    error.status = 409;
+    const error = new Error("La partita non è attiva");
+    error.status = 403;
     throw error;
   }
 
-  // path: [startPage, ...]; quindi l'ultimo elemento è la corrente
   if (!Array.isArray(game.path) || game.path.length <= 1) {
     return game;
   }
 
-  // rimuove la pagina corrente, lascia la precedente
   game.path = game.path.slice(0, game.path.length - 1);
   game.currentPage = game.path[game.path.length - 1];
 
-
-  // Indietro deve contare comunque come click
   game.clicks = (game.clicks || 0) + 1;
+  game.lastActivityAt = new Date();
 
   game.status = "in_progress";
   game.endedAt = null;
   game.durationSeconds = null;
+  game.pausedAt = null;
 
   await game.save();
   return game;
 };
 
 const getActiveGame = async (userId) => {
+  const now = Date.now();
+  const ttlMs = Number.parseInt(process.env.GAME_INACTIVITY_TTL_MS || "900000", 10);
+
+  await Game.update(
+    { status: "paused", pausedAt: new Date() },
+    {
+      where: {
+        userId,
+        status: "in_progress",
+        lastActivityAt: {
+          [Op.lt]: new Date(now - ttlMs),
+        },
+      },
+    }
+  );
+
+  // MODIFICA CHIAVE: Cerchiamo la partita attiva includendo lo stato "paused"
   return Game.findOne({
-    where: { userId, status: "in_progress" },
+    where: { 
+      userId, 
+      status: { [Op.in]: ["in_progress", "paused"] } 
+    },
     order: [["startedAt", "DESC"]],
   });
 };
 
-
 const getGameLinks = async (userId, gameId) => {
   const parsedGameId = parseId(gameId);
   if (!validateId(parsedGameId)) {
-    const error = new Error("Game id is not valid");
+    const error = new Error("L'ID della partita non è valido");
     error.status = 400;
     throw error;
   }
 
   const game = await Game.findOne({ where: { id: parsedGameId, userId } });
   if (!game) {
-    const error = new Error("Game not found");
+    const error = new Error("Partita non trovata");
     error.status = 404;
     throw error;
   }
 
   let pageData;
   try {
-    // Recupera l'HTML (e i link) della pagina corrente
     pageData = await getPageData(game.currentPage);
   } catch (err) {
-    const error = new Error("Wikipedia content unavailable");
+    const error = new Error("Contenuto di Wikipedia non disponibile");
     error.status = 502;
     throw error;
   }
 
-
-  // Rispondiamo inviando l'HTML direttamente al frontend
   return {
     gameId: game.id,
     currentPage: game.currentPage,
@@ -248,31 +260,29 @@ const getGameLinks = async (userId, gameId) => {
 const abandonGame = async (userId, gameId) => {
   const parsedGameId = parseId(gameId);
   if (!validateId(parsedGameId)) {
-    const error = new Error("Game id is not valid");
+    const error = new Error("L'ID della partita non è valido");
     error.status = 400;
     throw error;
   }
 
   const game = await Game.findOne({ where: { id: parsedGameId, userId } });
   if (!game) {
-    const error = new Error("Game not found");
+    const error = new Error("Partita non trovata");
     error.status = 404;
     throw error;
   }
 
-  if (game.status !== "in_progress") {
-    const error = new Error("Game is not active");
+  // Consentiamo di abbandonare sia giochi in corso che in pausa
+  if (game.status !== "in_progress" && game.status !== "paused") {
+    const error = new Error("La partita non è attiva");
     error.status = 409;
     throw error;
   }
 
-  // Per evitare giochi “orfani”/in corso, eliminiamo direttamente il record
-  // invece di marcarlo come failed.
   await Game.destroy({ where: { id: parsedGameId, userId } });
 
   return { id: parsedGameId, deleted: true };
 };
-
 
 const listUserGames = async (userId) => {
   return Game.findAll({ where: { userId }, order: [["startedAt", "DESC"]] });
@@ -316,7 +326,65 @@ const getLeaderboard = async () => {
   return results;
 };
 
-module.exports = {
+const resumePausedGame = async (userId, gameId) => {
+  const parsedGameId = parseId(gameId);
+  if (!validateId(parsedGameId)) {
+    const error = new Error("L'ID della partita non è valido");
+    error.status = 400;
+    throw error;
+  }
+
+  const game = await Game.findOne({ where: { id: parsedGameId, userId } });
+  if (!game) {
+    const error = new Error("Partita non trovata");
+    error.status = 404;
+    throw error;
+  }
+
+  if (game.status !== "paused") {
+    const error = new Error("La partita non è in pausa");
+    error.status = 409;
+    throw error;
+  }
+
+  game.status = "in_progress";
+  game.lastActivityAt = new Date();
+  game.pausedAt = null;
+
+  await game.save();
+  return game;
+};
+
+const pauseGame = async (userId, gameId) => {
+  const parsedGameId = parseId(gameId);
+  if (!validateId(parsedGameId)) {
+    const error = new Error("L'ID della partita non è valido");
+    error.status = 400;
+    throw error;
+  }
+
+  const game = await Game.findOne({ where: { id: parsedGameId, userId } });
+  if (!game) {
+    const error = new Error("Partita non trovata");
+    error.status = 404;
+    throw error;
+  }
+
+  if (game.status !== "in_progress") {
+    const error = new Error("La partita non è attiva");
+    error.status = 409;
+    throw error;
+  }
+
+  game.status = "paused";
+  game.pausedAt = new Date();
+  game.lastActivityAt = new Date();
+
+  await game.save();
+  return game;
+};
+
+module.exports = {  
   startNewGame,
   addMove,
   getActiveGame,
@@ -326,4 +394,6 @@ module.exports = {
   listCompletedGames,
   getLeaderboard,
   undoMove,
+  resumePausedGame,
+  pauseGame,
 };

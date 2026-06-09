@@ -13,7 +13,7 @@ const fetchJsonWithRetry = async (url, { retries = 7, backoffMs = 400 } = {}) =>
       if (!response.ok) {
         // 429 = rate limit. Anche 4xx/5xx qui vengono gestiti tramite retry se previsto.
         if (response.status >= 500 || response.status === 429) {
-          throw new Error(`Upstream status ${response.status}`);
+          throw new Error(`Stato del servizio esterno ${response.status}`);
         }
         // errori 4xx non gestiti esplicitamente: falliamo subito
         return { response, payload: null };
@@ -66,11 +66,11 @@ const getRandomPage = async () => {
     `${WIKI_ENDPOINT}?${params.toString()}`
   );
   if (!response.ok) {
-    throw new Error("Failed to fetch random page");
+    throw new Error("Impossibile recuperare una pagina casuale");
   }
   const randomEntry = payload?.query?.random?.[0];
   if (!randomEntry?.title) {
-    throw new Error("Random page not available");
+    throw new Error("Pagina casuale non disponibile");
   }
 
   return normalizeTitle(randomEntry.title);
@@ -93,7 +93,7 @@ const resolvePageTitle = async (pageTitle) => {
     `${WIKI_ENDPOINT}?${params.toString()}`
   );
   if (!response.ok) {
-    throw new Error("Failed to resolve page title");
+    throw new Error("Impossibile tradurre il titolo della pagina");
   }
   const pages = payload?.query?.pages || {};
   const page = Object.values(pages)[0];
@@ -109,7 +109,7 @@ const resolvePageTitle = async (pageTitle) => {
 const getPageData = async (pageTitle) => {
   const normalizedTitle = normalizeTitle(pageTitle);
   if (!normalizedTitle) {
-    throw new Error("Page title is not valid");
+    throw new Error("Il titolo della pagina non è valido");
   }
   const cacheKey = `data::${normalizedTitle}`;
   const cached = linksCache.get(cacheKey);
@@ -130,7 +130,7 @@ const getPageData = async (pageTitle) => {
     `${WIKI_ENDPOINT}?${params.toString()}`
   );
   if (!response.ok) {
-    throw new Error("Failed to fetch page data");
+    throw new Error("Impossibile recuperare i dati della pagina");
   }
 
   const html = payload?.parse?.text?.["*"] || "";
