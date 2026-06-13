@@ -10,7 +10,7 @@ const Play = () => {
   const [game, setGame] = useState(null);
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
-  const [startPage, setStartPage] = useState("");
+
   const [html, setHtml] = useState(""); // Cambiato da links a html
   const [linksStatus, setLinksStatus] = useState("idle");
   const [linksError, setLinksError] = useState("");
@@ -191,11 +191,9 @@ const Play = () => {
         await api.post(`/api/games/${game.id}/abandon`);
       }
 
-      const response = await api.post("/api/games/start", {
-        startPage: startPage || undefined,
-      });
+      const response = await api.post("/api/games/start", {});
       setGame(response.data);
-      setStartPage("");
+
       await loadPageContent(response.data.id);
     } catch (err) {
       setError(err?.response?.data?.message || "Impossibile avviare la partita");

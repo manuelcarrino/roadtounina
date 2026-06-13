@@ -1,11 +1,29 @@
+
+/*
+Se una richiesta HTTP non fa match con nessuna rotta specificata nell'applicazione, finisce qui.
+Crea un errore e lo passa al gestore globale tramite next().
+*/
+
 const notFoundHandler = (_req, _res, next) => {
   const error = new Error("Risorsa non trovata");
+  
+  // 404 (Not Found) - la rotta o la risorsa richiesta non esiste
   error.status = 404;
   next(error);
 };
 
+
+/*
+Gestore globale degli errori (Global Error Handler).
+Mappa i messaggi tecnici (spesso in inglese) in messaggi chiari in italiano per il frontend.
+*/
+
 const errorHandler = (err, _req, res, _next) => {
+  
+  // Determina lo status code: se non è specificato nell'errore, assegna 403 (se è CORS) o 500 di default
   const status = err.status || (err.message === "Not allowed by CORS" ? 403 : 500);
+  
+  // Dizionario dei messaggi generici in base al codice HTTP
   const fallbackMessages = {
     400: "Richiesta non valida",
     401: "Credenziali non valide o password errata",
@@ -16,6 +34,8 @@ const errorHandler = (err, _req, res, _next) => {
     500: "Errore interno. Riprova più tardi.",
     502: "Servizio esterno non disponibile. Riprova tra poco.",
   };
+
+  // Dizionario che converte messaggi di errore crudi in messaggi user-friendly
   const messageMap = {
     "Internal server error": fallbackMessages[500],
     "Route not found": fallbackMessages[404],
@@ -30,16 +50,20 @@ const errorHandler = (err, _req, res, _next) => {
     "Invalid credentials or wrong password": fallbackMessages[401],
   };
 
-
   const rawMessage = err.message || "";
+  
   const message = messageMap[rawMessage] ||
     (rawMessage.startsWith("Upstream status") ? fallbackMessages[502] : "") ||
     fallbackMessages[status] ||
     "Errore imprevisto";
+
+  // Costruisce il payload di risposta
   const payload = { message, status };
+  
   if (process.env.NODE_ENV !== "production" && err.stack) {
     payload.stack = err.stack;
   }
+  
   res.status(status).json(payload);
 };
 

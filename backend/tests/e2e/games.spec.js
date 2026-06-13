@@ -9,7 +9,6 @@ const registerAndLogin = async (request) => {
   const password = "Password123!";
 
   const registerResponse = await request.post("/api/auth/register", {
-    // Aggiunto username al payload
     data: { email, username, password },
   });
   const registerPayload = await registerResponse.json();
@@ -23,12 +22,11 @@ const registerAndLogin = async (request) => {
 
 const authHeaders = (token) => ({ Authorization: `Bearer ${token}` });
 
-test("start game returns in_progress", async ({ request }) => {
+test("start game returns in_progress (always random start)", async ({ request }) => {
   const { accessToken } = await registerAndLogin(request);
-
+  
   const response = await request.post("/api/games/start", {
     headers: authHeaders(accessToken),
-    data: { startPage: "Napoli" },
   });
 
   expect(response.status()).toBe(201);
@@ -42,7 +40,6 @@ test("get active game returns current game", async ({ request }) => {
 
   await request.post("/api/games/start", {
     headers: authHeaders(accessToken),
-    data: { startPage: "Napoli" },
   });
 
   const response = await request.get("/api/games/me/active", {
@@ -59,7 +56,6 @@ test("move rejects non-linked next page", async ({ request }) => {
 
   const startResponse = await request.post("/api/games/start", {
     headers: authHeaders(accessToken),
-    data: { startPage: "Napoli" },
   });
   const game = await startResponse.json();
 
@@ -76,7 +72,6 @@ test("abandon game deletes the game", async ({ request }) => {
 
   const startResponse = await request.post("/api/games/start", {
     headers: authHeaders(accessToken),
-    data: { startPage: "Napoli" },
   });
   const game = await startResponse.json();
 
@@ -86,7 +81,6 @@ test("abandon game deletes the game", async ({ request }) => {
 
   expect(response.status()).toBe(200);
   const payload = await response.json();
-  // Ora il test verifica che il backend abbia risposto con { deleted: true }
   expect(payload.deleted).toBe(true);
 });
 
@@ -113,3 +107,4 @@ test("completed games returns array", async ({ request }) => {
   const payload = await response.json();
   expect(Array.isArray(payload)).toBe(true);
 });
+

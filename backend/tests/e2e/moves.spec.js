@@ -20,17 +20,6 @@ const registerAndLogin = async (request) => {
 
 const authHeaders = (token) => ({ Authorization: `Bearer ${token}` });
 
-test("start game rejects invalid start page", async ({ request }) => {
-  const { accessToken } = await registerAndLogin(request);
-
-  const response = await request.post("/api/games/start", {
-    headers: authHeaders(accessToken),
-    data: { startPage: "Categoria:Test" },
-  });
-
-  expect(response.status()).toBe(400);
-});
-
 test("me endpoint returns array", async ({ request }) => {
   const { accessToken } = await registerAndLogin(request);
 
