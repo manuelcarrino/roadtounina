@@ -168,6 +168,7 @@ const logout = async ({ refreshToken }) => {
   await user.save();
 };
 
+
 const deleteAccount = async ({ userId, password }) => {
   if (!password) {
     const error = new Error("La password e' obbligatoria");

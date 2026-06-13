@@ -1,6 +1,8 @@
 const { test, expect } = require("@playwright/test");
 
 const uniqueEmail = () => `user_${Date.now()}_${Math.random().toString(16).slice(2)}@test.dev`;
+// Aggiungiamo un generatore di username valido (max 24 caratteri)
+const uniqueUsername = () => `usr_${Math.random().toString(16).slice(2, 12)}`;
 
 test("health check responds", async ({ request }) => {
   const response = await request.get("/health");
@@ -11,22 +13,23 @@ test("health check responds", async ({ request }) => {
 
 test("register creates a user", async ({ request }) => {
   const response = await request.post("/api/auth/register", {
-    data: { email: uniqueEmail(), password: "Password123!" },
+    // Aggiunto username al payload
+    data: { email: uniqueEmail(), username: uniqueUsername(), password: "Password123!" },
   });
 
   expect(response.status()).toBe(201);
   const payload = await response.json();
   expect(payload.user.email).toContain("@test.dev");
   expect(payload.tokens.accessToken).toBeTruthy();
-  expect(payload.tokens.refreshToken).toBeTruthy();
 });
 
 test("login returns tokens", async ({ request }) => {
   const email = uniqueEmail();
+  const username = uniqueUsername();
   const password = "Password123!";
 
   await request.post("/api/auth/register", {
-    data: { email, password },
+    data: { email, username, password },
   });
 
   const response = await request.post("/api/auth/login", {
@@ -36,39 +39,42 @@ test("login returns tokens", async ({ request }) => {
   expect(response.status()).toBe(200);
   const payload = await response.json();
   expect(payload.tokens.accessToken).toBeTruthy();
-  expect(payload.tokens.refreshToken).toBeTruthy();
 });
 
 test("refresh issues new tokens", async ({ request }) => {
   const email = uniqueEmail();
+  const username = uniqueUsername();
   const password = "Password123!";
 
   const registerResponse = await request.post("/api/auth/register", {
-    data: { email, password },
+    // Aggiunto username al payload
+    data: { email, username, password },
   });
   const registerPayload = await registerResponse.json();
 
+  const csrfToken = registerPayload.csrfToken;
   const response = await request.post("/api/auth/refresh", {
-    data: { refreshToken: registerPayload.tokens.refreshToken },
+    headers: { "x-csrf-token": csrfToken },
   });
 
   expect(response.status()).toBe(200);
   const payload = await response.json();
   expect(payload.tokens.accessToken).toBeTruthy();
-  expect(payload.tokens.refreshToken).toBeTruthy();
 });
 
 test("logout clears refresh token", async ({ request }) => {
   const email = uniqueEmail();
+  const username = uniqueUsername();
   const password = "Password123!";
 
   const registerResponse = await request.post("/api/auth/register", {
-    data: { email, password },
+    data: { email, username, password },
   });
   const registerPayload = await registerResponse.json();
 
+  const csrfToken = registerPayload.csrfToken;
   const response = await request.post("/api/auth/logout", {
-    data: { refreshToken: registerPayload.tokens.refreshToken },
+    headers: { "x-csrf-token": csrfToken },
   });
 
   expect(response.status()).toBe(204);

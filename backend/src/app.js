@@ -5,6 +5,8 @@ const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
 const fs = require("fs");
 const path = require("path");
+const cookieParser = require("cookie-parser");
+
 
 const routes = require("./routes/router");
 const { errorHandler, notFoundHandler } = require("./middlewares/errorHandler");
@@ -39,7 +41,9 @@ app.set("trust proxy", process.env.TRUST_PROXY === "true" ? 1 : 0);
 app.use(helmet());
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use(cors(corsOptions));
+app.use(cookieParser());
 app.use(express.json());
+
 app.use(globalLimiter);
 
 app.get("/health", (_req, res) => {

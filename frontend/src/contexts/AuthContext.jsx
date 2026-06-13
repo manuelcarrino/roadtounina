@@ -37,8 +37,8 @@ export const AuthProvider = ({ children }) => {
     persistAuth({
       user: response.data.user,
       accessToken: response.data.tokens.accessToken,
-      refreshToken: response.data.tokens.refreshToken,
     });
+
     return response.data;
   }, [persistAuth]);
 
@@ -64,12 +64,15 @@ export const AuthProvider = ({ children }) => {
       // noop (nessuna partita o errore di rete): procediamo comunque con il logout
     }
 
-    const refreshToken = auth?.refreshToken;
-    if (refreshToken) {
-      await api.post("/api/auth/logout", { refreshToken });
+    try {
+      await api.post("/api/auth/logout");
+    } catch {
+      // noop: even if refresh cookie already expired
     }
+
     persistAuth(null);
-  }, [auth?.refreshToken, persistAuth]);
+  }, [persistAuth]);
+
 
 
   const updateAccount = useCallback(async (payload) => {
@@ -78,11 +81,11 @@ export const AuthProvider = ({ children }) => {
       persistAuth({
         user: response.data.user,
         accessToken: auth?.accessToken,
-        refreshToken: auth?.refreshToken,
       });
+
     }
     return response.data;
-  }, [auth?.accessToken, auth?.refreshToken, persistAuth]);
+  }, [auth?.accessToken, persistAuth]);
 
   useEffect(() => {
     const interceptor = api.interceptors.response.use(

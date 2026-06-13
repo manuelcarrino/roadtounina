@@ -1,19 +1,23 @@
 const { test, expect } = require("@playwright/test");
 
 const uniqueEmail = () => `user_${Date.now()}_${Math.random().toString(16).slice(2)}@test.dev`;
+const uniqueUsername = () => `usr_${Math.random().toString(16).slice(2, 12)}`;
 
 const registerAndLogin = async (request) => {
   const email = uniqueEmail();
+  const username = uniqueUsername();
   const password = "Password123!";
 
   const registerResponse = await request.post("/api/auth/register", {
-    data: { email, password },
+    // Aggiunto username al payload
+    data: { email, username, password },
   });
   const registerPayload = await registerResponse.json();
 
   return {
     accessToken: registerPayload.tokens.accessToken,
     email,
+    username,
   };
 };
 
@@ -67,7 +71,7 @@ test("move rejects non-linked next page", async ({ request }) => {
   expect(response.status()).toBe(400);
 });
 
-test("abandon game sets failed status", async ({ request }) => {
+test("abandon game deletes the game", async ({ request }) => {
   const { accessToken } = await registerAndLogin(request);
 
   const startResponse = await request.post("/api/games/start", {
@@ -82,7 +86,8 @@ test("abandon game sets failed status", async ({ request }) => {
 
   expect(response.status()).toBe(200);
   const payload = await response.json();
-  expect(payload.status).toBe("failed");
+  // Ora il test verifica che il backend abbia risposto con { deleted: true }
+  expect(payload.deleted).toBe(true);
 });
 
 test("leaderboard returns array", async ({ request }) => {

@@ -1,13 +1,15 @@
 const { test, expect } = require("@playwright/test");
 
 const uniqueEmail = () => `user_${Date.now()}_${Math.random().toString(16).slice(2)}@test.dev`;
+const uniqueUsername = () => `usr_${Math.random().toString(16).slice(2, 12)}`;
 
 const registerAndLogin = async (request) => {
   const email = uniqueEmail();
+  const username = uniqueUsername();
   const password = "Password123!";
 
   const registerResponse = await request.post("/api/auth/register", {
-    data: { email, password },
+    data: { email, username, password },
   });
   const registerPayload = await registerResponse.json();
 
